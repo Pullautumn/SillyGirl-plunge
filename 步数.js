@@ -46,11 +46,10 @@ function main() {
     var pass = bucketGet('sbspwd', qq)
     var name = GetUsername()
     if (sbs > 90000) {
-        var min = 19668,
-                //最小步数
-        max = 25000; //最大步数
+        var min = 19668; //最小步数
+        var max = 25000; //最大步数
         sbs = Math.floor(Math.random() * (max - min) + min); //随机步数
-        sendText("不要超过90000\n给你改成随机步数+"sbs"+了")
+        sendText("不要超过90000\n给你改成随机步数"+sbs+"了")
     }
     var url2 = "https://api.kit9.cn/api/milletmotion/?mobile=" + tel + "&password=" + pass + "&step=" + sbs
     var date = request({
