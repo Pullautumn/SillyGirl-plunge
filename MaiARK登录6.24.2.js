@@ -55,7 +55,7 @@ function checkMaiArk() {
 	      sendText("2s后开始配置...")
 	      sleep(1500)
 	   	  sendText("请输入您的MaiARK服务地址：\n(输入“q”随时退出会话。)")
-	   	  maiArk = input(30000)
+	   	  maiArk = input(50000)
 	   	  
 	   	  for (var i = 0; i < 2; i++) {
          //错误4次直接退出
@@ -69,7 +69,7 @@ function checkMaiArk() {
            return;   
             } else{
                  sendText("输入地址格式错误，请重新输入：")
-                 maiArk = input(30000)
+                 maiArk = input(50000)
           
         }
             
@@ -82,7 +82,7 @@ function checkMaiArk() {
 		}
       	
       sendText("MaiARK为您服务，请输入11位手机号：(输入“q”随时退出会话。)");
-	  var num = input(20000)
+	  var num = input(30000)
 	  main(num);
 }
 
@@ -104,7 +104,7 @@ function main(num) {
 	    }
         else{
           sendText("请输入正确的手机号：")
-          num = input(20000)
+          num = input(30000)
           	//默认等待20s,不够自己改
         }
         
@@ -135,7 +135,7 @@ function getcode(num) {
 
     if (!result) {
         
-        sendText("获取验证码超时，请尝试重新登录，或检查MaiARK配置！")
+        sendText("获取验证码超时，请联系管理员QQ：66903202！")
         //如果这里登录时返回这个内容，请检查自己的MaiARK是否正常
         if (notify!= "false") {
         notifyMasters("用户："+user+"\n昵称："+GetUsername()+"\n来源渠道："+ImType()+"\n该用户获取验证码失败\n\n不想收到此通知？试试对我发送“set jd_cookie maiark_notify false”")   
