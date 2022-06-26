@@ -4,7 +4,11 @@
 //2022-6-10 v1.4.1 修复'xxx,JD_COOKIE已失效。'命令无反馈的问题
 //2022-6-11 v.1.4.2 修复'xxx,JD_COOKIE已失效。'部分账号匹配失败的问题,并优化交互
 //2022-6-12 v1.4.3 玄学优化,可能减少了一些bug，也可能增加了一些bug
-//2022-6-20 v1.5 添加青龙环境变量备份与恢复、客户Q版导入与导出功能
+//2022-6-20 v1.5 添加青龙环境变量备份与恢复、客户Q绑导出与导入功能
+//2022-6-20 v1.5.1 添加监控配置导出与导入功能，残废
+//2022-6-20 v1.5.2 恢复备份自动清除备份信息，防止不良插件窃取ck
+//2022-6-21 v1.5.3 修改移动ck为移动环境变量，修复青龙存在其他变量时移动京东ck时的序号问题，可用于移动其他环境变量
+//2022-6-26 v1.5.4 延长通知所有客户的随机延时，以降低冻结风险
 
 //[rule:^交换 ? ?]			
 //交换两个账号顺序,不支持多容器
@@ -15,32 +19,39 @@
 //使用方式-将傻妞通知“xxx,JD_COOKIE已失效。"重新复制粘贴发回给傻妞
 
 //[rule:^移动 ? ?]  		
-//支持使用序号、备注和pt_pin值移动
-//例：移动 jd_123pin 23 ，移动账号jd_123pin到序号23
-//例：移动 1 3 	，移动账号1到序号3
-//例：移动 小号 10 ，移动小号到序号10
+//移动环境变量位置，支持使用序号、备注，如是JD_COOKIE变量也可使用pt_pin值，其他变量可使用变量名
+//例：移动 jd_abc 23 ，移动pt_pin值为jd_abc的账号到序号23
+//例：移动 1 3 	，移动序号1的变量到序号3
+//例：移动 小号 10 ，移动备注为小号的变量到序号10
+//例：移动 elm 30，移动变量名为elm的变量到序号30
 
 //[rule:^通知所有失效客户$]
 //一键通知所有CK失效账户
 
 //[rule:^删除失效$]
-//一键删除所有失效CK
+//一键删除所有处于禁用状态的CK，需具备失效ck自动禁用
 
 //[rule:^备份青龙变量$]
+//备份后请尽快恢复，防止不良插件窃取ck，也可使用delete qinglong backup命令清除备份
 
 //[rule:^恢复青龙变量$]
+//恢复备份后会自动清除备份，即每个备份仅能恢复一次
 
 //[rule:^导出客户Q绑$]
 
-//[rule:导入客户Q绑[\s\S]+]
+//[rule:^导入客户Q绑[\s\S]+]
 //例：导入客户Q绑 xxx，需搭配“导出客户Q绑”命令使用
+
+//[rule:^导出监控配置$]
+
+//[rule:^导入监控配置[\s\S]+]
+//例：导入监控配置 xxx，需搭配“导出监控配置”命令使用
+//监控变量过多可能无法导入，如无法导入可自行将导出信息添加到傻妞数据管理后台jd_cookie env_listens项
 
 // [admin: true] 是否只允许管理员使用
 
 
-//-------难产项目---------//导出：QQ有消息长度限制，导入：傻妞有参数长度限制
-//[:^导出监控配置$]
-//[:^导入监控配置 ?]
+//-------难产项目---------//QQ有消息长度限制
 
 //[:^导出青龙环境变量$]
 //一键导出青龙环境变量,支持完整导出与最小化导出
@@ -83,8 +94,8 @@ function main(){
 	
 	else if(msg.indexOf("JD_COOKIE已失效。")!=-1){
 		let pin=msg.match(/^\S+(?=,)/g)
-		let notify_msg=sillyGirl.session("jd send "+pin +" "+msg)
-		sendText("已通知:"+pin+"\n"+notify_msg().message)		
+		let notify=sillyGirl.session("jd send "+pin +" "+msg)
+		sendText("已通知:"+pin+"\n"+notify().message)		
 	}
 	
 	else if(msg.indexOf("移动")!=-1){
@@ -97,12 +108,12 @@ function main(){
 			return
 		}		
 		ql_token=Get_QL_Token()
-		var JD_COOKIES=Get_env(Get_QL_env(),"JD_COOKIE")
 		if(ql_token==null){
 			sendText("青龙对接失败，请检查青龙管理是否配置有误")
 			return
 		}
-		Move_qlEnv(param(1),param(2)-1,JD_COOKIES)
+//		var JD_COOKIES=Get_env(Get_QL_env(),"JD_COOKIE")
+		sendText(Move_qlEnv(param(1),param(2)-1,Get_QL_env()))
 			
 	}
 	
@@ -124,17 +135,22 @@ function main(){
 	else if(msg.indexOf("导入客户Q绑")!=-1)
 		sendText(Import_pinQQ(msg.match(/(?<=导入客户Q绑 )\S+/g)))
 		
+	else if(msg=="导出监控配置")
+		sendText(Export_spy())
+
+	else if(msg.indexOf("导入监控配置")!=-1)
+		sendText(Import_spy(msg.match(/(?<=导入监控配置 )\S+/g)))
+		
 	return
 }
 
 
 function Recovery_qlEnv(QLS){
-	let notify_msg=""
+	let notify=""
 	let data=bucketGet("qinglong","backup")
 	if(data=="")
-		return "你都没备份，恢复个寂寞"
+		return "备份不存在耶"
 	let backup=JSON.parse(data)
-	//buckketSet("qinglong","backup","")
 	for(let i=0;i<backup.length;i++){
 		if(QLS.length>1)
 			sendText("请选择备份容器"+backup[i].container+"的恢复容器\n")
@@ -153,11 +169,12 @@ function Recovery_qlEnv(QLS){
 			}
 		}
 		if(choose==1)
-			notify_msg=notify_msg+"\n成功恢复备份容器"+backup[i].container+"的"+count+"个变量至容器"+QLS[GetContent()-1].name
+			notify=notify+"\n成功恢复备份容器"+backup[i].container+"的"+count+"个变量至容器"+QLS[GetContent()-1].name
 		else if(choose==0)
-			notify_msg=notify_msg+"\n成功恢复备份容器"+backup[i].container+"的"+count+"个变量至容器"+QLS[0].name			
+			notify=notify+"\n成功恢复备份容器"+backup[i].container+"的"+count+"个变量至容器"+QLS[0].name			
 	}
-	return notify_msg
+	bucketSet("qinglong","backup","")
+	return notify
 }
 
 function Backup_qlEnv(QLS){
@@ -171,7 +188,7 @@ function Backup_qlEnv(QLS){
 		}
 	var data=[ql]
 	let count=0
-	let notify_msg=""
+	let notify=""
 	for(let i=0;i<QLS.length;i++){
 		if(i>=data.length)
 			data.push(ql)
@@ -190,27 +207,27 @@ function Backup_qlEnv(QLS){
 			data[i].envs[j].remark=envs[j].remarks
 			count++,counti++
 		}
-		notify_msg=notify_msg+"\n\n容器"+QLS[i].name+":"+counti+"个变量"
+		notify=notify+"\n\n容器"+QLS[i].name+":"+counti+"个变量"
 	}
 	bucketSet("qinglong","backup",JSON.stringify(data))
-	return "共备份"+QLS.length+"个容器"+count+"个变量:"+notify_msg
+	return "共备份"+QLS.length+"个容器"+count+"个变量:"+notify
 }
 
 function Delete_AllCK_disabled(QLS){
 	let flag=0
 	let dis_pin_num=0
-	let disable_notify=""
+	let notify=""
 	for(let j=0;j<QLS.length;j++){
 		ql_host=QLS[j].host
 		ql_client_id=QLS[j].client_id
 		ql_client_secret=QLS[j].client_secret
 		ql_token=Get_QL_Token()
 		var JD_COOKIES=Get_env(Get_QL_env(),"JD_COOKIE")	
-		disable_notify=disable_notify+"容器"+(j+1)+QLS[j].name+":\n"			
+		notify=notify+"容器"+(j+1)+QLS[j].name+":\n"			
 		for(let i=0;i<JD_COOKIES.length;i++){
 			if(JD_COOKIES[i].status==true){
 				let pt_pin=JD_COOKIES[i].value.match(/(?<=pt_pin=)\S+(?=;)/g)
-				disable_notify=disable_notify+(++dis_pin_num)+"、"+pt_pin+"\n"
+				notify=notify+(++dis_pin_num)+"、"+pt_pin+"\n"
 				if(Get_QL_verion()==401)
 					Delete_QL_Env(JD_COOKIES[i]._id)
 				else
@@ -222,73 +239,79 @@ function Delete_AllCK_disabled(QLS){
 	if(!flag)
 	sendText("您的客户全都没有失效耶~")
 	else
-	sendText("共删除"+dis_pin_num+"个失效账号，\n"+disable_notify)
+	sendText("共删除"+dis_pin_num+"个失效账号，\n"+notify)
 }
 
 function Notify_AllCK_disabled(QLS){
+	sendText("正在为您通知，如若失效客户过多将花费较长时间，请耐心等待")
 	let flag=0
-	let disable_notify="已通知："
+	let notify="已通知："
 	let dis_pin_num=0
 	for(let j=0;j<QLS.length;j++){
 		ql_host=QLS[j].host
 		ql_client_id=QLS[j].client_id
 		ql_client_secret=QLS[j].client_secret
 		ql_token=Get_QL_Token()
-		var JD_COOKIES=Get_env(Get_QL_env(),"JD_COOKIE")	
-		disable_notify=disable_notify+"\n\n容器"+(j+1)+QLS[j].name+":"
-		for(let i=0;i<JD_COOKIES.length;i++){
-			if(JD_COOKIES[i].status==true){
-				let pt_pin=JD_COOKIES[i].value.match(/(?<=pt_pin=)\S+(?=;)/g)
-				if(disable_notify.indexOf(pt_pin)==-1){
-					disable_notify=disable_notify+"\n"+(++dis_pin_num)+"、账号"+(i+1)+"-"+pt_pin
+		var envs=Get_QL_env()
+		notify=notify+"\n\n容器"+(j+1)+QLS[j].name+":"
+		for(let i=0;i<envs.length;i++){
+			if(envs[i].status==true){
+				let pt_pin=envs[i].value.match(/(?<=pt_pin=)\S+(?=;)/g)
+				if(notify.indexOf(pt_pin)==-1&&pt_pin!=null){
+					notify=notify+"\n账号"+(i+1)+"-"+pt_pin
 					sillyGirl.session("jd send "+pt_pin+" "+"温馨提示，您的账号"+pt_pin+"已过期，请重新登陆")
-					sleep(Math.random()*3000+1000)
+					sleep(Math.random()*10000+10000)
+					dis_pin_num++
 				}
-						flag=1
+				flag=1
 			}
 		}
 	}
 	if(!flag)
 		sendText("您的客户全都没有失效耶~")
 	else
-		sendText("共"+dis_pin_num+"个账号失效，"+disable_notify)	
+		sendText("共"+dis_pin_num+"个账号失效，"+notify)	
 }
 
-function Move_qlEnv(from,to_index,JD_COOKIES){
+function Move_qlEnv(from,to_index,envs){
+	let notify=""
 	let ql_v=Get_QL_verion()
-	if(to_index>=JD_COOKIES.length){
-		sendText("醒一醒，你没有这么多CK,目标位置错误")
-		return
-	}
+	if(to_index>=envs.length)
+		return "目标位置有误，超出变量总数"
 	if(from.match(/^\d+$/g)!=null){	
 		from=from-1
-		if(from>=JD_COOKIES.length){
-			sendText("醒一醒，你没有这么多CK，账号序号错误")
-			return
-		}
+		if(from>=envs.length)
+			return "原位置有误，超出变量总数"
 		if(ql_v==401)
-			Move_QL_Env(JD_COOKIES[from]._id,from,to_index)
+			Move_QL_Env(envs[from]._id,from,to_index)
 		else
-			Move_QL_Env(JD_COOKIES[from].id,from,to_index)
-		sendText("账号"+JD_COOKIES[from].value.match(/(?<=pt_pin=)\S+(?=;)/g)+" 移动成功!")
+			Move_QL_Env(envs[from].id,from,to_index)
+		let pin=envs[from].value.match(/(?<=pt_pin=)\S+(?=;)/g)
+		if(pin!=null)
+			notify="账号"+pin+" 移动成功!"
+		else
+			notify="变量"+envs[from].name+"移动成功"
 	}
 	else {		
-		let from_index=GetJDCookie(JD_COOKIES,from)
-		if(from_index==-1){
-		sendText("pin值或者备注错误，请使用青龙中存在的京东账号")
-			return
-		}
+		let from_index=Find_env(envs,from)
+		if(from_index==-1)
+			return "未找到该变量"
 		if(ql_v==401)
-			Move_QL_Env(JD_COOKIES[from_index]._id,from_index+1,to_index)
+			Move_QL_Env(envs[from_index]._id,from_index+1,to_index)
 		else
-			Move_QL_Env(JD_COOKIES[from_index].id,from_index+1,to_index)			
-		sendText("账号"+JD_COOKIES[from_index].value.match(/(?<=pt_pin=)\S+(?=;)/g)+" 移动成功!")
-	}			
+			Move_QL_Env(envs[from_index].id,from_index+1,to_index)			
+		let pin=envs[from_index].value.match(/(?<=pt_pin=)\S+(?=;)/g)
+		if(pin!=null)
+			notify="账号"+pin+" 移动成功!"
+		else
+			notify="变量"+envs[from_index].name+"移动成功"
+	}
+	return 	notify
 }
 
-function GetJDCookie(JD_COOKIES,pin_remark){
-	for(i=0;i<JD_COOKIES.length;i++){
-		if(JD_COOKIES[i].value.indexOf(pin_remark)!=-1|| JD_COOKIES[i].remarks==pin_remark)
+function Find_env(envs,string){
+	for(i=0;i<envs.length;i++){
+		if(envs[i].value.match(/(?<=pt_pin=)\S+(?=;)/g)==string|| envs[i].remarks==string||envs[i].name==string)
 			return i
 	}
 	return -1
@@ -296,11 +319,11 @@ function GetJDCookie(JD_COOKIES,pin_remark){
 
 function Get_QL(QLS){
 	if(QLS.length>1){
-		let notify_msg="请选择容器(输入q退出)：\n"
+		let notify="请选择容器(输入q退出)：\n"
 		for(let i=0;i<QLS.length;i++){
-			notify_msg=notify_msg+(i+1).toString()+":"+QLS[i].name+"\n"
+			notify=notify+(i+1)+"、"+QLS[i].name+"\n"
 		}
-		sendText(notify_msg)
+		sendText(notify)
 		let ql_num=input(10000)
 		if(ql_num==""||ql_num=="q"||ql_num.match(/^\d+$/g)==null||ql_num>QLS.length)
 			return -1
@@ -471,34 +494,31 @@ function Import_env_lite(QLS,data){
 }
 
 function Export_spy(){
-	let data=bucketKeys("SpyQueue")
-	let allspy=[]
-	for(let i=0;i<data.length;i++){
-		var spy=JSON.parse(bucketGet("SpyQueue",data[i]))
-		spy.Oks=""
-		allspy[i]=spy
-		sendText(JSON.stringify(allspy[i]))
-	}
-	return JSON.stringify(allspy)
+	return bucketGet("jd_cookie","env_listens")
 }
 
 function Import_spy(data){
 	let spys=JSON.parse(data)
+	let count=0
+	let notify=""
 	for(let i=0;i<spys.length;i++){
-		
+		notify=notify+"\n"+(i+1)+"、"+spys[i].name
+		count++
 	}
+	bucketSet("jd_cookie","env_listens",data)
+	return "共导入"+count+"个监控信息"+notify
 }
 
 function Import_pinQQ(data){
-	let notify_msg=""
+	let notify=""
 	let pinQQ=JSON.parse(data)
 	let count=0
 	for(let i=0;i<pinQQ.length;i++){
 		bucketSet("pinQQ",pinQQ[i].pin,pinQQ[i].qq)
-		notify_msg=notify_msg+"\n"+pinQQ[i].pin+":"+pinQQ[i].qq
+		notify=notify+"\n"+pinQQ[i].pin+":"+pinQQ[i].qq
 		count++
 	}
-	return "已导入"+count+"个客户Q绑信息"+notify_msg
+	return "已导入"+count+"个客户Q绑信息"+notify
 }
 
 function Export_pinQQ(){
